@@ -26,6 +26,14 @@ export interface CompactionPolicyConfig {
   compactionRetries?: number
   /** Maximum retries after canonical context overflow; `0` disables recovery. Defaults to `1`. */
   maxOverflowRetries?: number
+  /**
+   * Prompt-message budget: compact when the routed request would carry this
+   * many messages or more. Non-negative integer; defaults to `1600`; `0`
+   * disables the trigger. Some OpenAI-compatible gateways reject requests by
+   * message count independently of the model's context window, so the token
+   * threshold alone cannot keep a long tool-heavy session sendable.
+   */
+  maxMessages?: number
 }
 
 /** Exact provider/model override merged over the default compaction policy. */
@@ -58,6 +66,7 @@ interface ResolvedPolicyFields {
   readonly maxTokens: number
   readonly compactionRetries: number
   readonly maxOverflowRetries: number
+  readonly maxMessages: number
 }
 
 /** Validated immutable config whose target-specific defaults remain unresolved. */

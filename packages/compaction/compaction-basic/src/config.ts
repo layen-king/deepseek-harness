@@ -22,6 +22,13 @@ const DEFAULT_THRESHOLD_RATIO = 0.8
 /** Default verbatim-tail fraction for every routed model. */
 const DEFAULT_RETAIN_RATIO = 0.16
 
+/**
+ * Default prompt-message budget. Gateways such as api.commandcode.ai reject a
+ * request carrying 2048 messages with an opaque 400 before the model runs;
+ * staying well below that keeps long sessions sendable.
+ */
+const DEFAULT_MAX_MESSAGES = 1600
+
 /** Fields shared by top-level defaults and exact-target overrides. */
 const POLICY_CONFIG_KEYS = [
   'thresholdRatio',
@@ -33,6 +40,7 @@ const POLICY_CONFIG_KEYS = [
   'maxTokens',
   'compactionRetries',
   'maxOverflowRetries',
+  'maxMessages',
 ] as const
 
 /** Complete public top-level configuration key set. */
@@ -76,6 +84,8 @@ export function resolveConfig(config: BasicCompactionConfig = {}): ResolvedConfi
   const maxTokens = config.maxTokens ?? headroomTokens
   assertPositiveInteger('BasicCompactionConfig.maxTokens (explicit or from headroomTokens)', maxTokens)
   const thresholdRatio = config.thresholdRatio ?? DEFAULT_THRESHOLD_RATIO
+  const maxMessages = config.maxMessages ?? DEFAULT_MAX_MESSAGES
+  assertNonNegativeInteger('BasicCompactionConfig.maxMessages', maxMessages)
   const retention = resolveRetention(config, { retainRatio: DEFAULT_RETAIN_RATIO })
   validateRatioRetention(thresholdRatio, retention, 'BasicCompactionConfig')
   const modelPolicies = resolveModelPolicies(config.modelPolicies)
@@ -104,6 +114,7 @@ export function resolveConfig(config: BasicCompactionConfig = {}): ResolvedConfi
     maxTokens,
     compactionRetries: config.compactionRetries ?? 1,
     maxOverflowRetries: config.maxOverflowRetries ?? 1,
+    maxMessages,
     modelPolicies,
     auto: config.auto ?? true,
   })
@@ -135,6 +146,7 @@ export function resolveTargetPolicy(
     maxTokens: override?.maxTokens ?? config.maxTokens,
     compactionRetries: override?.compactionRetries ?? config.compactionRetries,
     maxOverflowRetries: override?.maxOverflowRetries ?? config.maxOverflowRetries,
+    maxMessages: override?.maxMessages ?? config.maxMessages,
   })
 }
 
@@ -213,6 +225,7 @@ export function resolveCompactSpec(
     maxTokens: policy.maxTokens,
     compactionRetries: policy.compactionRetries,
     maxOverflowRetries: policy.maxOverflowRetries,
+    maxMessages: policy.maxMessages,
   })
 }
 
@@ -285,7 +298,9 @@ function validatePolicy(
   const maxTokens = config.maxTokens
   const compactionRetries = config.compactionRetries
   const maxOverflowRetries = config.maxOverflowRetries
+  const maxMessages = config.maxMessages
   if (thresholdRatio !== undefined) assertRatio(`${name}.thresholdRatio`, thresholdRatio)
+  if (maxMessages !== undefined) assertNonNegativeInteger(`${name}.maxMessages`, maxMessages)
   if (headroomTokens !== undefined) assertNonNegativeInteger(`${name}.headroomTokens`, headroomTokens)
   if (retainRatio !== undefined) assertRatio(`${name}.retainRatio`, retainRatio)
   if (retainTokens !== undefined) assertNonNegativeInteger(`${name}.retainTokens`, retainTokens)

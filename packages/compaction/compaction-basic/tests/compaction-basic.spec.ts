@@ -319,6 +319,7 @@ describe('compact configuration and defaults', () => {
       maxTokens: 65_536,
       compactionRetries: 1,
       maxOverflowRetries: 1,
+      maxMessages: 1600,
       modelPolicies: [],
       auto: true,
     })

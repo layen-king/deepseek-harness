@@ -316,7 +316,14 @@ export class BasicCompactionEngine extends CompactionEngine {
       info.context.contextWindow,
       reservedCompletionTokens(agent, info.defaultMaxTokens),
     )
-    if (measurement.totalTokens < spec.thresholdTokens) return null
+    // A gateway may cap the message count of one request well below what the
+    // context window allows and reject the request before the model runs, so
+    // message count is a second, independent pressure trigger.
+    const overBudget = (m: { totalTokens: number; nodes: readonly unknown[] }): boolean => (
+      m.totalTokens >= spec.thresholdTokens
+      || (spec.maxMessages > 0 && m.nodes.length >= spec.maxMessages)
+    )
+    if (!overBudget(measurement)) return null
 
     // Once pressure qualifies, land the model-free pass before choosing a
     // summary range, then remeasure through the singleton replay fold.
@@ -324,7 +331,7 @@ export class BasicCompactionEngine extends CompactionEngine {
       prune.pruneSession(agent.session)
       measurement = meter.measure(agent.session)
     }
-    if (measurement.totalTokens < spec.thresholdTokens) return null
+    if (!overBudget(measurement)) return null
 
     let result: CompactionResult | null = null
     for (let attempt = 0; attempt <= spec.compactionRetries; attempt += 1) {
@@ -337,12 +344,13 @@ export class BasicCompactionEngine extends CompactionEngine {
       }
       result = await this.compactRegion(range.start, range.end, agent, signal)
       measurement = meter.measure(agent.session)
-      if (measurement.totalTokens < spec.thresholdTokens) return result
+      if (!overBudget(measurement)) return result
     }
 
     throw new Error(
       `compaction still above threshold after ${spec.compactionRetries + 1} compaction attempts `
-      + `(${measurement.totalTokens} estimated tokens >= threshold ${spec.thresholdTokens})`,
+      + `(${measurement.totalTokens} estimated tokens >= threshold ${spec.thresholdTokens}, `
+      + `${measurement.nodes.length} messages vs budget ${spec.maxMessages})`,
     )
   }
 
